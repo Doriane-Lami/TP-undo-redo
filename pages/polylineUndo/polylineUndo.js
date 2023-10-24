@@ -2,6 +2,78 @@ import Stack from './stack';
 import Konva from "konva";
 import { createMachine, interpret } from "xstate";
 
+const undo = document.getElementById("undo");
+const redo = document.getElementById("redo");
+
+
+class UndoManager {
+    constructor() {
+        this.undoStack = new Stack();
+        this.redoStack = new Stack();
+    }
+
+    execute(CommandeAjoutLigne) {
+        CommandeAjoutLigne.execute()
+        this.undoStack.push(CommandeAjoutLigne)
+    }
+
+    canUndo() {
+        if (!this.undoStack.isEmpty()) {
+            undo.disabled = false;
+            return true
+        }
+        undo.disabled = true;
+        return false
+    }
+
+    undo() {
+        if (this.canUndo) {
+            var precedent = this.undoStack.pop();
+            this.redoStack.push(precedent);
+            precedent.undo();
+        }
+    }
+
+    canRedo() {
+        if (!this.redoStack.isEmpty()) {
+            document.querySelector('redo').disabled = false;
+            return true
+        }
+        document.querySelector('redo').disabled = true;
+        return false
+    }
+
+    redo() {
+        if (this.canRedo) {
+            var precedent = this.redoStack.pop();
+            this.undoStack.push(precedent);
+            precedent.execute();
+        }
+    }
+
+
+
+}
+
+class CommandeAjoutLigne {
+
+    constructor(recepteur, parametre) {
+        this.recepteur = recepteur;
+        this.parametre = parametre;
+    }
+
+    execute() {
+        this.recepteur.add(this.parametre);
+    }
+
+    undo() {
+        this.parametre.remove();
+    }
+
+}
+
+const undoManager = new UndoManager();
+
 const stage = new Konva.Stage({
     container: "container",
     width: 400,
@@ -119,7 +191,9 @@ const polylineMachine = createMachine(
                 polyline.points(newPoints);
                 polyline.stroke("black"); // On change la couleur
                 // On sauvegarde la polyline dans la couche de dessin
-                dessin.add(polyline); // On l'ajoute à la couche de dessin
+                //     dessin.add(polyline); // On l'ajoute à la couche de dessin
+                var commande = new CommandeAjoutLigne(dessin, polyline);
+                undoManager.execute(commande);
             },
             addPoint: (context, event) => {
                 const pos = stage.getPointerPosition();
@@ -171,3 +245,18 @@ window.addEventListener("keydown", (event) => {
     console.log("Key pressed:", event.key);
     polylineService.send(event.key);
 });
+
+
+
+
+
+
+undo.addEventListener("click", () => {
+    undoManager.undo();
+});
+
+
+redo.addEventListener("click", () => {
+    undoManager.redo();
+});
+
